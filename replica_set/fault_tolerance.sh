@@ -10,7 +10,7 @@ kubectl get pod -w
 # 레플리카 셋이 생성해준 파드 삭제
 kubectl delete pod <pod-name>
 
-# 레플리카 셋에서 발생한 이벤트 확인
+# 레플리카 셋에서 발생한 이벤트 확인 - 레플리카셋이 새로운 파드를 생성해준다.
 kubectl describe rs blue-replicaset
 
 # 자원 정리
