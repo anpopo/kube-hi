@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: blue-replicaset
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: blue-app  # selector 의 matchLabels 의 속성으로 설정된 라벨을 가지고 있는 자원들을(pod) 레플리카셋에서 관리한다.
+  template:
+    metadata:
+      name: blue-app
+      labels:
+        app: blue-app
+    spec:
+      containers:
+        - name: blue-app
+          image: yoonjeong/blue-app:1.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "50m"
