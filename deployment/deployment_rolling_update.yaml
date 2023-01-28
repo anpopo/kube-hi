@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+  annotations:
+    kubernetes.io/change-cause: "initializing"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # replicas 3 롤링 업데이트 배포 속도 조절 maxUnavailable 1 maxSurge 2 -> 2 ~ 5 까지 유지 가능
+      maxUnavailable: 1   # 기준에서 한번에 제거 할 수 있는 레플리카 -> 수 혹은 퍼센트로 작성가능
+      maxSurge: 2         # 기준에서 최대로 늘릴 수 있는 레플리카 -> 수 혹은 퍼센트로 작성가능
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: yoonjeong/my-app:1.0
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "50m"
