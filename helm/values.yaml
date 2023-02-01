@@ -1,0 +1,305 @@
+# Default values for jenkins.
+# This is a YAML-formatted file.
+# Declare name/value pairs to be passed into your templates.
+# name: value
+
+## Overrides for generated resource names
+# See templates/_helpers.tpl
+# nameOverride:
+fullnameOverride: jenkins-test
+namespaceOverride: jenkins  #
+
+clusterZone: "cluster.local"
+
+renderHelmLabels: true
+
+controller:
+  componentName: "jenkins-controller"
+  image: "jenkins/jenkins"
+  tag: "2.375.2-jdk11"
+  tagLabel: jdk11
+  imagePullPolicy: "Always"
+  imagePullSecretName:
+  disableRememberMe: false
+  numExecutors: 1  #
+  executorMode: "NORMAL"
+  markupFormatter: plainText
+  adminSecret: true
+
+  hostNetworking: false
+  # When enabling LDAP or another non-Jenkins identity source, the built-in admin account will no longer exist.
+  # If you disable the non-Jenkins identity store and instead use the Jenkins internal one,
+  # you should revert controller.adminUser to your preferred admin user:
+  adminUser: "admin"
+  adminPassword: "12344321"
+  jenkinsHome: "/var/jenkins_home"
+  jenkinsRef: "/usr/share/jenkins/ref"
+  jenkinsWar: "/usr/share/jenkins/jenkins.war"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      cpu: "2000m"
+      memory: "4096Mi"
+  usePodSecurityContext: true
+  runAsUser: 1000
+  fsGroup: 1000
+  containerSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+  servicePort: 80  #
+  targetPort: 8080
+  serviceType: LoadBalancer  #
+  healthProbes: true
+  probes:
+    startupProbe:
+      httpGet:
+        path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 12
+    livenessProbe:
+      failureThreshold: 5
+      httpGet:
+        path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 5
+      initialDelaySeconds: 60
+    readinessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 5
+      initialDelaySeconds: 60
+
+  agentListenerEnabled: true
+  agentListenerPort: 50000
+  agentListenerHostPort:
+  agentListenerNodePort:
+  agentListenerExternalTrafficPolicy:
+  agentListenerLoadBalancerSourceRanges:
+  - 0.0.0.0/0
+  disabledAgentProtocols:
+    - JNLP-connect
+    - JNLP2-connect
+  csrf:
+    defaultCrumbIssuer:
+      enabled: true
+      proxyCompatability: fasle
+  agentListenerServiceType: "ClusterIP"
+
+  installPlugins:
+
+  installLatestPlugins: true
+  installLatestSpecifiedPlugins: false
+  initializeOnce: false
+  overwritePluginsFromImage: true
+  projectNamingStrategy: standard
+  enableRawHtmlMarkupFormatter: false
+  cloudName: "kubernetes"
+
+  # Below is the implementation of Jenkins Configuration as Code.  Add a key under configScripts for each configuration area,
+  # where each corresponds to a plugin or section of the UI.  Each key (prior to | character) is just a label, and can be any value.
+  # Keys are only used to give the section a meaningful name.  The only restriction is they may only contain RFC 1123 \ DNS label
+  # characters: lowercase letters, numbers, and hyphens.  The keys become the name of a configuration yaml file on the controller in
+  # /var/jenkins_home/casc_configs (by default) and will be processed by the Configuration as Code Plugin.  The lines after each |
+  # become the content of the configuration yaml file.  The first line after this is a JCasC root element, eg jenkins, credentials,
+  # etc.  Best reference is https://<jenkins_url>/configuration-as-code/reference.  The example below creates a welcome message:
+  JCasC:
+    defaultConfig: true
+    configUrls: []
+    # - https://acme.org/jenkins.yaml
+    # Remote URL:s for configuration files.
+    configScripts: {}
+    #  welcome-message: |
+    #    jenkins:
+    #      systemMessage: Welcome to our CI\CD server.  This Jenkins is configured and managed 'as code'.
+    # Allows adding to the top-level security JCasC section. For legacy,  default the chart includes apiToken configurations
+    security:
+      apiToken:
+        creationOfLegacyTokenEnabled: false
+        tokenGenerationOnCreationEnabled: false
+        usageStatisticsEnabled: true
+    # Ignored if securityRealm is defined in controller.JCasC.configScripts
+    securityRealm: |-
+      local:
+        allowsSignup: false
+        enableCaptcha: false
+        users:
+        - id: "${chart-admin-username}"
+          name: "Jenkins Admin"
+          password: "${chart-admin-password}"
+    # Ignored if authorizationStrategy is defined in controller.JCasC.configScripts
+    authorizationStrategy: |-
+      loggedInUsersCanDoAnything:
+        allowAnonymousRead: false
+  sidecars:
+    configAutoReload:
+      # If enabled: true, Jenkins Configuration as Code will be reloaded on-the-fly without a reboot.  If false or not-specified,
+      # jcasc changes will cause a reboot and will only be applied at the subsequent start-up.  Auto-reload uses the
+      # http://<jenkins_url>/reload-configuration-as-code endpoint to reapply config when changes to the configScripts are detected.
+      enabled: true
+      image: kiwigrid/k8s-sidecar:1.15.0
+      imagePullPolicy: IfNotPresent
+      resources: {}
+        #   limits:
+        #     cpu: 100m
+        #     memory: 100Mi
+        #   requests:
+        #     cpu: 50m
+        #     memory: 50Mi
+      # How many connection-related errors to retry on
+      reqRetryConnect: 10
+      # env:
+      #   - name: REQ_TIMEOUT
+      #     value: "30"
+      # SSH port value can be set to any unused TCP port.  The default, 1044, is a non-standard SSH port that has been chosen at random.
+      # Is only used to reload jcasc config from the sidecar container running in the Jenkins controller pod.
+      # This TCP port will not be open in the pod (unless you specifically configure this), so Jenkins will not be
+      # accessible via SSH from outside of the pod.  Note if you use non-root pod privileges (runAsUser & fsGroup),
+      # this must be > 1024:
+      sshTcpPort: 1044
+      # folder in the pod that should hold the collected dashboards:
+      folder: "/var/jenkins_home/casc_configs"
+      # If specified, the sidecar will search for JCasC config-maps inside this namespace.
+      # Otherwise the namespace in which the sidecar is running will be used.
+      # It's also possible to specify ALL to search in all namespaces:
+      # searchNamespace:
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+
+agent:
+  enabled: true
+  defaultsProviderTemplate: ""
+  jenkinsUrl:
+  jenkinsTunnel:
+  kubernetesConnectTimeout: 5
+  kubernetesReadTimeout: 15
+  maxRequestsPerHostStr: "32"
+  namespace:
+  image: "jenkins/inbound-agent"
+  tag: "4.11.2-4"
+  workingDir: "/home/jenkins/agent"
+  nodeUsageMode: "NORMAL"
+  customJenkinsLabels: []
+  # name of the secret to be used for image pulling
+  imagePullSecretName:
+  componentName: "jenkins-agent"
+  websocket: false
+  privileged: false
+  runAsUser:
+  runAsGroup:
+  hostNetworking: false
+  resources:
+    requests:
+      cpu: "512m"
+      memory: "512Mi"
+    limits:
+      cpu: "512m"
+      memory: "512Mi"
+  alwaysPullImage: false
+  podRetention: "Never"
+  showRawYaml: true
+  volumes:
+  - type: PVC
+    claimName: jenkins-pv-claim  #
+    mountPath: /var/jenkins_home
+    readOnly: false
+
+  # Executed command when side container gets started
+  command: "cat"  #
+  args: "${computer.jnlpmac} ${computer.name}"
+  # Side container name
+  sideContainerName: "jnlp"
+  # Doesn't allocate pseudo TTY by default
+  TTYEnabled: false
+  # Max number of spawned agent
+  containerCap: 10
+  # Pod name
+  podName: jenkins-test-pod
+  yamlMergeStrategy: "override"
+  connectTimeout: 100
+  disableDefaultAgent: false
+
+#  podTemplates:
+#    jenkins: |
+#      - name: jenkins
+#        label: jenkins
+#        serviceAccount: jenkins-admin
+#        volume:
+#          name: test-pvc
+#          persistentVolumeClaim:
+#            claimName: jenkins-pv-claim
+#        containers:
+#          - name: jenkins
+#            image: jenkins/jenkins
+#            command: "/bin/sh -c"
+#            port: 8080
+#            args: "cat"
+#            ttyEnabled: true
+#            privileged: true
+#            resourceRequestCpu: "400m"
+#            resourceRequestMemory: "512Mi"
+#            resourceLimitCpu: "1"
+#            resourceLimitMemory: "1024Mi"
+#            volumeMounts:
+#            - mountPath: /var/jenkins_home/test_pvc
+#              name: test-pvc
+#              readOnly: false
+
+#jenkins: |
+#  - name: jenkins
+#  label: jenkins
+#  serviceAccount: jenkins-admin
+#          volumes:
+#            - name: test-pvc
+#              persistentVolumeClaim:
+#                claimName: jenkins-pv-claim
+#  containers:
+#    - name: jenkins
+#      image: jenkins/jenkins:lts
+#      command: "/bin/sh -c"
+#      args: "cat"
+#      ttyEnabled: true
+#      privileged: true
+#      resourceRequestCpu: "400m"
+#      resourceRequestMemory: "512Mi
+#            resourceLimitCpu: "1"
+#      resourceLimitMemory: "1024Mi"
+#            volumeMounts:
+#              - mountPath: /var/jenkins_home/test_pvc
+#                name: test-pvc
+#                readOnly: false
+
+
+persistence:
+  enabled: true  #
+  existingClaim: jenkins-pv-claim  #
+
+networkPolicy:
+  enabled: true  #
+  apiVersion: networking.k8s.io/v1
+  internalAgents:
+    allowed: true
+
+rbac:
+  create: true
+  readSecrets: true
+
+serviceAccount:
+  create: false
+  name: jenkins-admin  #
+
+cronJob:
+  apiVersion: batch/v1
+
+checkDeprecation: true
+
